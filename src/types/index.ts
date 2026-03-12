@@ -29,9 +29,16 @@ export type ProgramCategory = 'pattern' | 'manual';
 export interface Program {
   name: string;
   category: ProgramCategory;
-  fn: (sequence: number[], directions: Direction[]) => Direction;
+  /**
+   * Возвращает мягкий голос в диапазоне [-1..1]:
+   *   +1.0  — сильная уверенность ↑
+   *   +0.5  — слабый сигнал ↑
+   *    0.0  — нет мнения / воздерживается
+   *   -0.5  — слабый сигнал ↓
+   *   -1.0  — сильная уверенность ↓
+   */
+  fn: (sequence: number[], directions: Direction[]) => number;
 }
-
 // ─── Program stats ────────────────────────────────────────────────────────────
 
 /**
@@ -129,7 +136,8 @@ export interface Prediction {
   pUpCTW: number | null;
   compPred: Direction;
   pUpComp: number | null;
-  programPreds: Direction[];
+  /** Мягкие голоса [-1..1] каждой программы в момент снимка */
+  programPreds: number[];
 }
 
 // ─── Log entry ────────────────────────────────────────────────────────────────

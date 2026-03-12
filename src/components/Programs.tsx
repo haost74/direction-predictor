@@ -13,7 +13,7 @@ interface Props {
 interface ProgRow {
   name: string;
   category: string;
-  pred: Direction;
+  pred: number;   // было Direction, теперь number [-1..1]
   weight: number;
   acc: string;
   barWidth: number;
@@ -88,9 +88,9 @@ const Programs: React.FC<Props> = ({ sequence, directions, progStats }) => {
 
             const arrow =
               row.pred > 0 ? (
-                <span className="up">↑</span>
+                <span className="up" style={{ opacity: 0.4 + Math.abs(row.pred) * 0.6 }}>↑</span>
               ) : row.pred < 0 ? (
-                <span className="down">↓</span>
+                <span className="down" style={{ opacity: 0.4 + Math.abs(row.pred) * 0.6 }}>↓</span>
               ) : (
                 <span style={{ color: 'var(--muted)' }}>—</span>
               );

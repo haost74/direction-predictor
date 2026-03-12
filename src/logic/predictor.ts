@@ -7,7 +7,9 @@ import type {
 } from '../types';
 import { softmaxWeights } from './math';
 import { compressionPredict } from './compression';
-import { ALL_PROGRAMS } from './programs2';
+import { ALL_PROGRAMS, initialWeight } from './programs2';
+
+// ─── CTW helpers ──────────────────────────────────────────────────────────────
 
 export function getCTWKey(dirs: Direction[], depth: number): string | null {
   if (dirs.length < depth) return null;
@@ -17,6 +19,8 @@ export function getCTWKey(dirs: Direction[], depth: number): string | null {
     .join('');
 }
 
+// ─── Predict ──────────────────────────────────────────────────────────────────
+
 export function predict(
   sequence: number[],
   directions: Direction[],
@@ -25,16 +29,23 @@ export function predict(
 ): Prediction | null {
   if (sequence.length < 2) return null;
 
-  // 1. Программы голосуют с softmax-нормированными весами
+  // 1. Программы голосуют — мягкий голос [-1..1] × softmax-вес
+  //
+  //    Голос конвертируется в P(↑) через: pUp_i = (vote_i + 1) / 2
+  //    Затем взвешенная сумма: sumUp += normW[i] * pUp_i
+  //
   const normW = softmaxWeights(progStats.map((p) => p.weight));
   let sumUp = 0;
   let sumDown = 0;
 
-  const programPreds: Direction[] = ALL_PROGRAMS.map((prog, i) => {
-    const pred = prog.fn(sequence, directions);
-    if (pred > 0) sumUp += normW[i];
-    else if (pred < 0) sumDown += normW[i];
-    return pred;
+  const programPreds: number[] = ALL_PROGRAMS.map((prog: any, i: number) => {
+    const vote = prog.fn(sequence, directions); // [-1..1]
+    // Конвертируем в вклад: положительный → sumUp, отрицательный → sumDown
+    // Пропорционально силе голоса
+    const pUpVote = (vote + 1) / 2; // [0..1]
+    sumUp   += normW[i] * pUpVote;
+    sumDown += normW[i] * (1 - pUpVote);
+    return vote;
   });
 
   const progTotal = sumUp + sumDown;
@@ -84,30 +95,43 @@ export function predict(
     pUpCTW,
     compPred,
     pUpComp,
-    programPreds,
+    programPreds, // мягкие голоса [-1..1]
   };
 }
 
-export function updateWeights(
+// ─── Update weights (snapshot-safe) ──────────────────────────────────────────
+
+export function __updateWeights(
   actual: Direction,
   snapshot: Prediction,
   progStats: ProgramStat[],
   ctxModel: CTWModel,
   dirsBeforeStep: Direction[],
 ): { newProgStats: ProgramStat[]; newCtxModel: CTWModel } {
-  // Обновляем веса по снимку — не пересчитываем fn() заново
+
   const newProgStats: ProgramStat[] = progStats.map((stat, i) => {
-    const pred = snapshot.programPreds[i];
-    if (pred === 0) return stat;
-    const correct = (pred > 0 && actual > 0) || (pred < 0 && actual < 0);
+    const vote = snapshot.programPreds[i]; // [-1..1]
+    if (vote === 0) return stat;           // воздержался — не обновляем
+
+    // Корректность: голос в нужную сторону?
+    const correct = (vote > 0 && actual > 0) || (vote < 0 && actual < 0);
+
+    // Сила обновления пропорциональна уверенности |vote|
+    // Уверенный и правый → большой бонус
+    // Уверенный и неправый → большой штраф
+    const strength = Math.abs(vote); // [0..1]
+    const factor = correct
+      ? 1 + 0.08 * strength   // [1.00 .. 1.08]
+      : 1 - 0.08 * strength;  // [0.92 .. 1.00]
+
     return {
-      weight:  Math.max(0.001, Math.min(stat.weight * (correct ? 1.08 : 0.92), 1000)),
+      weight:  Math.max(0.001, Math.min(stat.weight * factor, 1000)),
       correct: stat.correct + (correct ? 1 : 0),
-      total:   stat.total + 1,
+      total:   stat.total   + 1,
     };
   });
 
-  // Обновляем CTW с контекстом ДО текущего шага
+  // CTW обновляется по прежнему (бинарно — направление не изменилось)
   const newCtxModel: CTWModel = {
     1: { ...ctxModel[1] },
     2: { ...ctxModel[2] },
@@ -129,6 +153,80 @@ export function updateWeights(
   return { newProgStats, newCtxModel };
 }
 
+export function updateWeights(
+  actual: Direction,
+  snapshot: Prediction,
+  progStats: ProgramStat[],
+  ctxModel: CTWModel,
+  dirsBeforeStep: Direction[],
+): { newProgStats: ProgramStat[]; newCtxModel: CTWModel } {
+
+  const eta = 0.04; // скорость обучения (меньше = стабильнее)
+
+  let newProgStats: ProgramStat[] = progStats.map((stat, i) => {
+    const vote = snapshot.programPreds[i]; // [-1..1]
+
+    if (vote === 0) return stat; // воздержался
+
+    const strength = Math.abs(vote);
+
+    const correct =
+      (vote > 0 && actual > 0) ||
+      (vote < 0 && actual < 0);
+
+    // reward = ±|vote|
+    const reward = correct ? strength : -strength;
+
+    const newWeight = Math.max(
+      1e-9,
+      Math.min(stat.weight * Math.exp(eta * reward), 1000)
+    );
+
+    return {
+      weight: newWeight,
+      correct: stat.correct + (correct ? 1 : 0),
+      total: stat.total + 1,
+    };
+  });
+
+  // ─── НОРМАЛИЗАЦИЯ ВЕСОВ (очень важно при 1000+ правил) ───
+
+  const sum = newProgStats.reduce((s, p) => s + p.weight, 0);
+
+  if (sum > 0) {
+    newProgStats = newProgStats.map((p) => ({
+      ...p,
+      weight: p.weight / sum,
+    }));
+  }
+
+  // ─── CTW обновление ───
+
+  const newCtxModel: CTWModel = {
+    1: { ...ctxModel[1] },
+    2: { ...ctxModel[2] },
+    3: { ...ctxModel[3] },
+    4: { ...ctxModel[4] },
+  };
+
+  for (let d = 1; d <= 4; d++) {
+    const key = getCTWKey(dirsBeforeStep, d);
+
+    if (key) {
+      const prev = ctxModel[d]?.[key] ?? { up: 1, down: 1 };
+
+      newCtxModel[d][key] = {
+        up: prev.up + (actual > 0 ? 1 : 0),
+        down: prev.down + (actual < 0 ? 1 : 0),
+      };
+    }
+  }
+
+  return { newProgStats, newCtxModel };
+}
+
+// ─── Initial state ────────────────────────────────────────────────────────────
+
 export function buildInitialState(): AppState {
   return {
     sequence:          [],
@@ -137,10 +235,17 @@ export function buildInitialState(): AppState {
     stats:             { total: 0, correct: 0 },
     accHistory:        [],
     logHistory:        [],
-    progStats:         ALL_PROGRAMS.map(() => ({ weight: 1.0, correct: 0, total: 0 })),
-    ctxModel:          { 1: {}, 2: {}, 3: {}, 4: {} },
+    // Начальный вес с штрафом Solomonoff: простые программы весят больше
+    progStats:         ALL_PROGRAMS.map((p: any) => ({
+      weight:  initialWeight(p),
+      correct: 0,
+      total:   0,
+    })),
+    ctxModel: { 1: {}, 2: {}, 3: {}, 4: {} },
   };
 }
+
+// ─── Process one new number (pure) ───────────────────────────────────────────
 
 export function processNumber(state: AppState, val: number): AppState {
   const {
@@ -186,7 +291,7 @@ export function processNumber(state: AppState, val: number): AppState {
         pendingPrediction,
         progStats,
         ctxModel,
-        directions, // dirs ДО шага — ключевой момент
+        directions,
       );
       newProgStats = updated.newProgStats;
       newCtxModel  = updated.newCtxModel;
