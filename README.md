@@ -1,8 +1,5 @@
 # SOLOMONOFF v2 — Binary Direction Predictor
 
-![App Screenshot](screenshot.png)  
-*Interactive dashboard for predicting the next direction (up/down) of a numeric sequence using an ensemble of expert programs and hierarchical context models.*
-
 ---
 
 ## Overview
@@ -59,11 +56,11 @@ Built with React, TypeScript, Vite, and Node.js (optional backend), it demonstra
 - npm or yarn
 
 ### Clone the repository
-```bash
+
 git clone https://github.com/yourusername/solomonoff-v2.git
 cd solomonoff-v2
 Install dependencies and run the client
-bash
+
 cd client
 npm install
 npm run dev
@@ -72,7 +69,7 @@ Open http://localhost:5173 in your browser.
 (Optional) Run the backend server
 If you need server‑side features:
 
-bash
+
 cd server
 npm install
 npm start
@@ -80,7 +77,7 @@ The server will run on http://localhost:3001.
 Note: The current version works fully offline without a backend.
 
 Build for production
-bash
+
 cd client
 npm run build
 The output will be in the dist folder.
@@ -131,9 +128,6 @@ Context depths – CTW supports depths up to 4 by default; you can increase it b
 
 Expert pool – Add or remove manual programs in src/programs/manual.ts.
 
-Screenshots
-https://screenshot.png
-The main dashboard showing input, statistics, programs, CTW table, and history.
 
 License
 MIT License. See LICENSE for details.
