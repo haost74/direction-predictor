@@ -18,18 +18,18 @@ export function initialWeight(p: Program): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. РУЧНЫЕ — мягкий сигнал там где есть естественная мера
+// 1. MANUAL — soft signal where there is natural measure
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildManualPrograms(): Program[] {
   return [
     {
-      // Сила и направление последнего шага — нормированы на средний шаг
-      name: 'тренд (момент)',
+      // Strength and direction of the last step — normalized to average step
+      name: 'trend (moment)',
       category: 'manual',
       fn: (s, d) => {
         if (d.length < 1) return 0;
-        if (s.length < 3) return d[d.length - 1]; // мало данных — жёстко
+        if (s.length < 3) return d[d.length - 1]; // little data — hard
         const lastAbs = Math.abs(s[s.length - 1] - s[s.length - 2]);
         const avgStep = avgAbs(diff(s.slice(-6))) + 1e-9;
         const strength = Math.min(lastAbs / avgStep, 2) / 2; // [0..1]
@@ -37,7 +37,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'анти-тренд',
+      name: 'anti-trend',
       category: 'manual',
       fn: (s, d) => {
         if (d.length < 1) return 0;
@@ -49,8 +49,8 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      // Величина ускорения непрерывна
-      name: 'ускорение Δ',
+      // Acceleration magnitude is continuous
+      name: 'acceleration Δ',
       category: 'manual',
       fn: (s) => {
         if (s.length < 4) return 0;
@@ -61,7 +61,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'замедление Δ',
+      name: 'deceleration Δ',
       category: 'manual',
       fn: (s) => {
         if (s.length < 4) return 0;
@@ -72,8 +72,8 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      // z-score — непрерывная мера отклонения от средней
-      name: 'возврат к средней (3)',
+      // z-score — continuous measure of deviation from mean
+      name: 'mean reversion (3)',
       category: 'manual',
       fn: (s) => {
         if (s.length < 3) return 0;
@@ -83,7 +83,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'возврат к средней (5)',
+      name: 'mean reversion (5)',
       category: 'manual',
       fn: (s) => {
         if (s.length < 5) return 0;
@@ -93,7 +93,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'возврат к средней (10)',
+      name: 'mean reversion (10)',
       category: 'manual',
       fn: (s) => {
         if (s.length < 10) return 0;
@@ -103,7 +103,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'следует за средней (5)',
+      name: 'follows mean (5)',
       category: 'manual',
       fn: (s) => {
         if (s.length < 5) return 0;
@@ -113,7 +113,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'ниже медианы → ↑',
+      name: 'below median → ↑',
       category: 'manual',
       fn: (s) => {
         if (s.length < 5) return 0;
@@ -122,37 +122,37 @@ function buildManualPrograms(): Program[] {
         return Math.max(-1, Math.min(1, -z / 2));
       },
     },
-    // Постоянные сигналы — слабые, без меры
-    { name: 'всегда ↑', category: 'manual', fn: () => 0.5 },
-    { name: 'всегда ↓', category: 'manual', fn: () => -0.5 },
+    // Constant signals — weak, without measure
+    { name: 'always ↑', category: 'manual', fn: () => 0.5 },
+    { name: 'always ↓', category: 'manual', fn: () => -0.5 },
     {
-      // Отношение шага к среднему — непрерывная мера
-      name: 'большой шаг → разворот',
+      // Ratio of step to mean — continuous measure
+      name: 'large step → reversal',
       category: 'manual',
       fn: (s, d) => {
         if (s.length < 4 || !d.length) return 0;
         const r = Math.abs(s[s.length - 1] - s[s.length - 2]);
         const av = avgAbs(diff(s.slice(-6))) + 1e-9;
-        const excess = r / av - 1.2; // 0 при ratio=1.2, растёт дальше
+        const excess = r / av - 1.2; // 0 when ratio=1.2, grows further
         if (excess <= 0) return 0;
         return -d[d.length - 1] * Math.min(excess / 1.8, 1);
       },
     },
     {
-      name: 'малый шаг → продолжение',
+      name: 'small step → continuation',
       category: 'manual',
       fn: (s, d) => {
         if (s.length < 4 || !d.length) return 0;
         const r = Math.abs(s[s.length - 1] - s[s.length - 2]);
         const av = avgAbs(diff(s.slice(-6))) + 1e-9;
-        const smallness = 0.6 - r / av; // > 0 если малый шаг
+        const smallness = 0.6 - r / av; // > 0 if small step
         if (smallness <= 0) return 0;
         return d[d.length - 1] * Math.min(smallness / 0.6, 1);
       },
     },
     {
-      // Доля ↑ в окне — непрерывна
-      name: 'баланс ↑ в окне 5',
+      // Proportion of ↑ in window — continuous
+      name: 'balance ↑ in window 5',
       category: 'manual',
       fn: (_s, d) => {
         if (d.length < 5) return 0;
@@ -161,7 +161,7 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      name: 'баланс ↑ в окне 10',
+      name: 'balance ↑ in window 10',
       category: 'manual',
       fn: (_s, d) => {
         if (d.length < 10) return 0;
@@ -170,8 +170,8 @@ function buildManualPrograms(): Program[] {
       },
     },
     {
-      // Отношение волатильностей — непрерывная мера
-      name: 'волатильность → разворот',
+      // Volatility ratio — continuous measure
+      name: 'volatility → reversal',
       category: 'manual',
       fn: (s, d) => {
         if (s.length < 8 || !d.length) return 0;
@@ -186,7 +186,7 @@ function buildManualPrograms(): Program[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. ПАТТЕРНЫ — строгое совпадение, ±1 / 0
+// 2. PATTERNS — strict match, ±1 / 0
 // ─────────────────────────────────────────────────────────────────────────────
 
 function generatePatternPrograms(): Program[] {
@@ -207,7 +207,7 @@ function generatePatternPrograms(): Program[] {
             if (d.length < len) return 0;
             const tail = d.slice(-len);
             for (let i = 0; i < len; i++) if (tail[i] !== p[i]) return 0;
-            return prr; // ±1 — совпадение точное
+            return prr; // ±1 — exact match
           },
         });
       }
@@ -217,13 +217,13 @@ function generatePatternPrograms(): Program[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. DIFF RULES — бинарные условия ±1/0, мягкие там где есть величина
+// 3. DIFF RULES — binary conditions ±1/0, soft where there is magnitude
 // ─────────────────────────────────────────────────────────────────────────────
 
 function generateDiffPrograms(): Program[] {
   const programs: Program[] = [];
 
-  // Бинарные попарные сравнения знаков — жёсткие ±1
+  // Binary pairwise comparisons of signs — hard ±1
   const addBinaryPair = (
     baseName: string,
     cond: (s: number[]) => boolean | null,
@@ -241,7 +241,7 @@ function generateDiffPrograms(): Program[] {
     }
   };
 
-  // sign(Δ1) == sign(Δ2) — бинарно
+  // sign(Δ1) == sign(Δ2) — binary
   addBinaryPair('sign(Δ1)==sign(Δ2)', (s) => {
     if (s.length < 3) return null;
     return Math.sign(s[s.length-1]-s[s.length-2]) === Math.sign(s[s.length-2]-s[s.length-3]);
@@ -262,7 +262,7 @@ function generateDiffPrograms(): Program[] {
     return Math.sign(s[s.length-1]-s[s.length-2]) !== Math.sign(s[s.length-3]-s[s.length-4]);
   });
 
-  // Нормированные непрерывные diff-сигналы — мягкие
+  // Normalized continuous diff-signals — soft
   const addSoft = (name: string, compute: (s: number[]) => number | null) => {
     programs.push({
       name,
@@ -274,14 +274,14 @@ function generateDiffPrograms(): Program[] {
     });
   };
 
-  // Нормированный Δ1 — непрерывная сила тренда
+  // Normalized Δ1 — continuous trend strength
   addSoft('softΔ1', (s) => {
     if (s.length < 3) return null;
     const d1 = s[s.length-1] - s[s.length-2];
     return d1 / (avgAbs(diff(s.slice(-6))) + 1e-9);
   });
 
-  // Нормированное ускорение (Δ1 - Δ2)
+  // Normalized acceleration (Δ1 - Δ2)
   addSoft('softAccel', (s) => {
     if (s.length < 4) return null;
     const d1 = s[s.length-1] - s[s.length-2];
@@ -296,7 +296,7 @@ function generateDiffPrograms(): Program[] {
     return (d2 - d1) / (avgAbs(diff(s.slice(-6))) + 1e-9);
   });
 
-  // Нормированный Δ1 относительно разных окон
+  // Normalized Δ1 relative to different windows
   for (const k of [3, 5, 7, 10]) {
     const kk = k;
     addSoft(`softRelΔ(${kk})`, (s) => {
@@ -306,12 +306,12 @@ function generateDiffPrograms(): Program[] {
     });
   }
 
-  // Нормированный рост волатильности
+  // Normalized volatility increase
   addSoft('softVolChg', (s) => {
     if (s.length < 5) return null;
     const a1 = Math.abs(s[s.length-1] - s[s.length-2]);
     const a2 = Math.abs(s[s.length-2] - s[s.length-3]);
-    // > 0 = рост волатильности, обращаем знак (разворот)
+    // > 0 = volatility increase, reverse sign (reversal)
     return -(a1 / (a2 + 1e-9) - 1);
   });
 
@@ -319,7 +319,7 @@ function generateDiffPrograms(): Program[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. MEAN REVERSION — z-score непрерывен, мягкие
+// 4. MEAN REVERSION — z-score continuous, soft
 // ─────────────────────────────────────────────────────────────────────────────
 
 function generateMeanReversionPrograms(): Program[] {
@@ -352,7 +352,7 @@ function generateMeanReversionPrograms(): Program[] {
     });
 
     if (kk >= 4) {
-      // Bollinger: мягкий сигнал только за пределами ±1σ
+      // Bollinger: soft signal only beyond ±1σ
       programs.push({
         name: `bollingerRev(${kk})`,
         category: 'pattern',
@@ -360,7 +360,7 @@ function generateMeanReversionPrograms(): Program[] {
           if (s.length < kk) return 0;
           const slice = s.slice(-kk);
           const z = (s[s.length-1] - avg(slice)) / (stddev(slice) + 1e-9);
-          if (Math.abs(z) < 1) return 0; // внутри полос — нет сигнала
+          if (Math.abs(z) < 1) return 0; // inside bands — no signal
           return Math.max(-1, Math.min(1, -z / 2));
         },
       });
@@ -385,7 +385,7 @@ function generateMeanReversionPrograms(): Program[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. MOMENTUM — нормированный импульс, мягкий
+// 5. MOMENTUM — normalized impulse, soft
 // ─────────────────────────────────────────────────────────────────────────────
 
 function generateMomentumPrograms(): Program[] {
@@ -417,7 +417,7 @@ function generateMomentumPrograms(): Program[] {
       },
     });
 
-    // Доля ↑ — непрерывна
+    // Proportion of ↑ — continuous
     programs.push({
       name: `upRatio(${kk})`,
       category: 'pattern',
@@ -433,13 +433,13 @@ function generateMomentumPrograms(): Program[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. CYCLE — mod совпадение бинарно, x vs x[t-n] мягко
+// 6. CYCLE — mod match binary, x vs x[t-n] soft
 // ─────────────────────────────────────────────────────────────────────────────
 
 function generateCyclePrograms(): Program[] {
   const programs: Program[] = [];
 
-  // t mod n == r — бинарное совпадение, ±1
+  // t mod n == r — binary match, ±1
   for (let n = 2; n <= 8; n++) {
     for (let r = 0; r < n; r++) {
       const nn = n, rr = r;
@@ -456,7 +456,7 @@ function generateCyclePrograms(): Program[] {
     }
   }
 
-  // x vs x[t-n] — нормированная разность, мягкая
+  // x vs x[t-n] — normalized difference, soft
   for (const n of [2, 3, 4, 5, 6, 7, 8, 10, 12]) {
     const nn = n;
 
@@ -483,7 +483,7 @@ function generateCyclePrograms(): Program[] {
     });
   }
 
-  // dirEcho — бинарное совпадение направления, ±1
+  // dirEcho — binary direction match, ±1
   for (const n of [2, 3, 4, 5, 6, 7]) {
     const nn = n;
     programs.push({
@@ -509,7 +509,7 @@ function generateCyclePrograms(): Program[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// СБОРКА
+// ASSEMBLY
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const MANUAL_PROGRAMS:   Program[] = buildManualPrograms();
