@@ -73,7 +73,7 @@ If you need server‑side features:
 cd server
 npm install
 npm start
-The server will run on http://localhost:3001.
+The server will run on http://localhost:3000.
 Note: The current version works fully offline without a backend.
 
 Build for production

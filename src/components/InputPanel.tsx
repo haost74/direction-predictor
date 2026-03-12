@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 interface Props {
   sequence: number[];
@@ -18,6 +18,14 @@ const InputPanel: React.FC<Props> = ({
   onReset,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);   // ← новый ref для прокрутки
+
+  // Автопрокрутка вниз при добавлении новых чисел
+  useEffect(() => {
+    if (scrollRef.current && sequence.length > 0) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [sequence]);
 
   const handleAdd = () => {
     const val = parseFloat(inputRef.current?.value ?? '');
@@ -50,7 +58,7 @@ const InputPanel: React.FC<Props> = ({
         <button className="btn btn--secondary" onClick={onReset}>RESET</button>
       </div>
 
-      <div className="sequence-scroll">
+      <div className="sequence-scroll" ref={scrollRef}>   {/* ← ref здесь */}
         {sequence.length === 0 ? (
           <span className="placeholder">enter numbers...</span>
         ) : (

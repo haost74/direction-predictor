@@ -183,7 +183,8 @@ body::before {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
-  min-height: 42px;
+  height: 82px;               /* высота ровно под две строки элементов */
+  overflow-y: auto;            /* скролл, если элементов больше двух строк */
   padding: 9px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -197,6 +198,8 @@ body::before {
   align-items: center;
   gap: 1px;
   animation: pop 0.2s ease;
+  width: 44px;               /* фиксированная ширина */
+  flex-shrink: 0;            /* запрещаем сжатие */
 }
 
 @keyframes pop {
@@ -485,8 +488,12 @@ body::before {
 
 /* ─── Placeholder ────────────────────────────────────────────────────────────── */
 .placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
   color: var(--muted);
   font-size: 9px;
-  padding: 14px;
   text-align: center;
 }
